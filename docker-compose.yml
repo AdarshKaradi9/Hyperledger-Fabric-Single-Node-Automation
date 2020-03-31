@@ -1,0 +1,169 @@
+version: '2'
+
+networks:
+  fabric:
+
+services:
+
+  orderer.fabric.com:
+    container_name: orderer.fabric.com
+    image: hyperledger/fabric-orderer:latest
+    working_dir: /opt/gopath/src/github.com/hyperledger/fabric
+    command: orderer
+    environment:
+      - ORDERER_GENERAL_TLS_ENABLED=true
+      - ORDERER_GENERAL_TLS_PRIVATEKEY=/etc/hyperledger/tls/orderer/tls/server.key
+      - ORDERER_GENERAL_TLS_CERTIFICATE=/etc/hyperledger/tls/orderer/tls/server.crt
+      - ORDERER_GENERAL_TLS_ROOTCAS=[/etc/hyperledger/tls/orderer/tls/ca.crt]
+      - ORDERER_KAFKA_RETRY_SHORTINTERVAL=1s
+      - ORDERER_KAFKA_RETRY_SHORTTOTAL=30s
+      - ORDERER_KAFKA_VERBOSE=true
+      - ORDERER_GENERAL_LOGLEVEL=debug
+      - ORDERER_GENERAL_LISTENADDRESS=0.0.0.0
+      - ORDERER_GENERAL_GENESISMETHOD=file
+      - ORDERER_GENERAL_GENESISFILE=/etc/hyperledger/configtx/genesis.block
+      - ORDERER_GENERAL_LOCALMSPID=OrdererMSP
+      - ORDERER_GENERAL_LOCALMSPDIR=/etc/hyperledger/msp/orderer/msp
+    ports:
+      - 7050:7050
+    volumes:
+      - ./channel-artifacts:/etc/hyperledger/configtx
+      - ./crypto-config/ordererOrganizations/fabric.com/orderers/orderer.fabric.com/msp:/etc/hyperledger/msp/orderer/msp
+      - ./crypto-config/ordererOrganizations/fabric.com/orderers/orderer.fabric.com/tls:/etc/hyperledger/tls/orderer/tls
+    networks:
+      - fabric
+
+  ca.org1.fabric.com:
+    image: hyperledger/fabric-ca:latest
+    environment:
+      - FABRIC_CA_HOME=/etc/hyperledger/fabric-ca-server
+      - FABRIC_CA_SERVER_CA_NAME=ca.org1.fabric.com
+    ports:
+      - "7054:7054"
+    command: sh -c 'fabric-ca-server start --ca.certfile /etc/hyperledger/fabric-ca-server-config/ca.org1.fabric.com-cert.pem --ca.keyfile /etc/hyperledger/fabric-ca-server-config/*_sk -b admin:adminpw -d'
+    volumes:
+      - ./crypto-config/peerOrganizations/org1.fabric.com/ca/:/etc/hyperledger/fabric-ca-server-config
+    container_name: ca.org1.fabric.com
+    networks:
+      - fabric
+
+  peer0.org1.fabric.com:
+    container_name: peer0.org1.fabric.com
+    image: hyperledger/fabric-peer:latest
+    working_dir: /opt/gopath/src/github.com/hyperledger/fabric/peer
+    command: peer node start
+    environment:
+      - CORE_LOGGING_LEVEL=debug
+      - CORE_PEER_CHAINCODELISTENADDRESS=0.0.0.0:7052
+      - CORE_PEER_TLS_ENABLED=true
+      - CORE_PEER_PROFILE_ENABLED=true
+      - CORE_PEER_TLS_CERT_FILE=/etc/hyperledger/peer/tls/server.crt
+      - CORE_PEER_TLS_KEY_FILE=/etc/hyperledger/peer/tls/server.key
+      - CORE_PEER_TLS_ROOTCERT_FILE=/etc/hyperledger/peer/tls/ca.crt
+      - CORE_CHAINCODE_LOGGING_LEVEL=DEBUG
+      - CORE_VM_ENDPOINT=unix:///host/var/run/docker.sock
+      - CORE_PEER_ID=peer0.org1.fabric.com
+      - CORE_PEER_ADDRESS=peer0.org1.fabric.com:7051
+      - CORE_VM_DOCKER_HOSTCONFIG_NETWORKMODE=fabric
+      - CORE_PEER_LOCALMSPID=org1MSP
+      - CORE_LEDGER_STATE_STATEDATABASE=CouchDB
+      - CORE_LEDGER_STATE_COUCHDBCONFIG_COUCHDBADDRESS=couchdb0:5984
+    ports:
+      - 7051:7051
+      - 7053:7053
+    volumes:
+      - /var/run/:/host/var/run/
+      - ./channel-artifacts:/etc/hyperledger/configtx
+      - ./crypto-config/ordererOrganizations/fabric.com/orderers/orderer.fabric.com/msp:/etc/hyperledger/msp/orderer/msp
+      - ./crypto-config/peerOrganizations/org1.fabric.com/peers/peer0.org1.fabric.com/msp:/etc/hyperledger/peer/msp
+      - ./crypto-config/peerOrganizations/org1.fabric.com/peers/peer0.org1.fabric.com/tls:/etc/hyperledger/peer/tls
+      - ./crypto-config/peerOrganizations/org1.fabric.com/users:/etc/hyperledger/msp/users
+    depends_on:
+      - orderer.fabric.com
+      - couchdb0
+    networks:
+      - fabric
+
+  couchdb0:
+    container_name: couchdb0
+    image: hyperledger/fabric-couchdb:latest
+    ports:
+      - 5984:5984
+    environment:
+      DB_URL: http://localhost:5984/member_db
+    networks:
+      - fabric
+
+  peer1.org1.fabric.com:
+    container_name: peer1.org1.fabric.com
+    image: hyperledger/fabric-peer:latest
+    working_dir: /opt/gopath/src/github.com/hyperledger/fabric/peer
+    command: peer node start
+    environment:
+      - CORE_LOGGING_LEVEL=debug
+      - CORE_PEER_CHAINCODELISTENADDRESS=0.0.0.0:7052
+      - CORE_PEER_TLS_ENABLED=true
+      - CORE_PEER_PROFILE_ENABLED=true
+      - CORE_PEER_TLS_CERT_FILE=/etc/hyperledger/peer/tls/server.crt
+      - CORE_PEER_TLS_KEY_FILE=/etc/hyperledger/peer/tls/server.key
+      - CORE_PEER_TLS_ROOTCERT_FILE=/etc/hyperledger/peer/tls/ca.crt
+      - CORE_CHAINCODE_LOGGING_LEVEL=DEBUG
+      - CORE_VM_ENDPOINT=unix:///host/var/run/docker.sock
+      - CORE_PEER_ID=peer1.org1.fabric.com
+      - CORE_PEER_ADDRESS=peer1.org1.fabric.com:7051
+      - CORE_VM_DOCKER_HOSTCONFIG_NETWORKMODE=fabric
+      - CORE_PEER_LOCALMSPID=org1MSP
+      - CORE_LEDGER_STATE_STATEDATABASE=CouchDB
+      - CORE_LEDGER_STATE_COUCHDBCONFIG_COUCHDBADDRESS=couchdb1:5984
+    ports:
+      - 8051:7051
+      - 8053:7053
+    volumes:
+      - /var/run/:/host/var/run/
+      - ./channel-artifacts:/etc/hyperledger/configtx
+      - ./crypto-config/ordererOrganizations/fabric.com/orderers/orderer.fabric.com/msp:/etc/hyperledger/msp/orderer/msp
+      - ./crypto-config/peerOrganizations/org1.fabric.com/peers/peer1.org1.fabric.com/msp:/etc/hyperledger/peer/msp
+      - ./crypto-config/peerOrganizations/org1.fabric.com/peers/peer1.org1.fabric.com/tls:/etc/hyperledger/peer/tls
+      - ./crypto-config/peerOrganizations/org1.fabric.com/users:/etc/hyperledger/msp/users
+    depends_on:
+      - orderer.fabric.com
+      - couchdb1
+    networks:
+      - fabric
+
+  couchdb1:
+    container_name: couchdb1
+    image: hyperledger/fabric-couchdb:latest
+    ports:
+      - 6984:5984
+    environment:
+      DB_URL: http://localhost:6984/member_db
+    networks:
+      - fabric
+
+  cliorg1:
+    container_name: cliorg1
+    image: hyperledger/fabric-tools:latest
+    tty: true
+    stdin_open: true
+    working_dir: /opt/gopath/src/github.com/hyperledger/fabric/peer
+    command: /bin/bash
+    environment:
+      - GOPATH=/opt/gopath
+      - CORE_LOGGING_LEVEL=DEBUG
+      - CORE_VM_ENDPOINT=unix:///host/var/run/docker.sock
+      - CORE_PEER_ID=cliorg1
+      - CORE_PEER_LOCALMSPID=org1MSP
+      - CORE_PEER_ADDRESS=peer0.org1.fabric.com:7051
+      - CORE_PEER_TLS_ENABLED=true
+      - CORE_PEER_TLS_CERT_FILE=/opt/gopath/src/github.com/hyperledger/fabric/peer/crypto/peerOrganizations/org1.fabric.com/peers/peer0.org1.fabric.com/tls/server.crt
+      - CORE_PEER_TLS_KEY_FILE=/opt/gopath/src/github.com/hyperledger/fabric/peer/crypto/peerOrganizations/org1.fabric.com/peers/peer0.org1.fabric.com/tls/server.key
+      - CORE_PEER_TLS_ROOTCERT_FILE=/opt/gopath/src/github.com/hyperledger/fabric/peer/crypto/peerOrganizations/org1.fabric.com/peers/peer0.org1.fabric.com/tls/ca.crt
+      - CORE_PEER_MSPCONFIGPATH=/opt/gopath/src/github.com/hyperledger/fabric/peer/crypto/peerOrganizations/org1.fabric.com/users/Admin@org1.fabric.com/msp
+    volumes:
+      - /var/run/:/host/var/run/
+      - ./crypto-config:/opt/gopath/src/github.com/hyperledger/fabric/peer/crypto/
+      - ./channel-artifacts:/opt/gopath/src/github.com/hyperledger/fabric/peer/channel-artifacts
+      - ./scripts/:/opt/gopath/src/github.com/hyperledger/fabric/peer/scripts
+    networks:
+      - fabric
